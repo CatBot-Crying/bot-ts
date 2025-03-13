@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { Client, IntentsBitField } = require('discord.js');
 const express = require('express');
+const { exec } = require('child_process'); // Added child_process
 const app = express();
 
 const client = new Client({
@@ -12,8 +13,6 @@ const client = new Client({
     ]
 });
 
-// Store the start time
-const startTime = Date.now();
 const prefix = process.env.PREFIX || '!';
 
 // Express server setup
@@ -26,20 +25,7 @@ app.listen(port, () => {
     console.log(`Express server running on port ${port}`);
 });
 
-// Function to format uptime
-function formatUptime(uptime) {
-    let seconds = Math.floor(uptime / 1000);
-    let minutes = Math.floor(seconds / 60);
-    let hours = Math.floor(minutes / 60);
-    let days = Math.floor(hours / 24);
-
-    seconds %= 60;
-    minutes %= 60;
-    hours %= 24;
-
-    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-}
-
+// Discord bot code
 client.once('ready', () => {
     console.log('Bot is ready!');
 });
@@ -49,13 +35,6 @@ client.on('messageCreate', async (message) => {
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
-
-    // Uptime command
-    if (command === 'uptime') {
-        const uptime = Date.now() - startTime;
-        const formattedUptime = formatUptime(uptime);
-        return message.reply(`Bot has been running for: ${formattedUptime}`);
-    }
 
     // Give role command
     if (command === 'giverole') {
@@ -123,6 +102,47 @@ client.on('messageCreate', async (message) => {
         } catch (error) {
             console.error(error);
             message.reply('An error occurred while banning the user!');
+        }
+    }
+
+    // New terminal command
+    if (command === 'exec') {
+        // Restrict to bot owner or specific role (security measure)
+        const ownerId = process.env.OWNER_ID; // Add your Discord ID to .env
+        if (message.author.id !== ownerId) {
+            return message.reply('Only the bot owner can use this command!');
+        }
+
+        const cmd = args.join(' ');
+        if (!cmd) {
+            return message.reply('Please provide a command to execute!');
+        }
+
+        try {
+            exec(cmd, (error, stdout, stderr) => {
+                if (error) {
+                    message.reply(`Error: ${error.message}`);
+                    return;
+                }
+                if (stderr) {
+                    message.reply(`Stderr: ${stderr}`);
+                    return;
+                }
+                
+                // Split long output into multiple messages if needed
+                const output = stdout || 'Command executed successfully (no output)';
+                const maxLength = 2000; // Discord message limit
+                if (output.length <= maxLength) {
+                    message.reply(`\`\`\`\n${output}\n\`\`\``);
+                } else {
+                    const parts = output.match(new RegExp(`.{1,${maxLength}}`, 'g'));
+                    parts.forEach(part => {
+                        message.channel.send(`\`\`\`\n${part}\n\`\`\``);
+                    });
+                }
+            });
+        } catch (error) {
+            message.reply(`Execution error: ${error.message}`);
         }
     }
 });
