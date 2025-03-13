@@ -36,7 +36,7 @@ client.on('messageCreate', async (message) => {
     const command = args.shift().toLowerCase();
 
     // Give role command
-    if (command === 'giverole') {
+    if (command === 'role') {
         if (!message.member.permissions.has('ManageRoles')) {
             return message.reply('You do not have permission to manage roles!');
         }
